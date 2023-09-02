@@ -1,1 +1,17 @@
-
+HostedScan.>>django application
+             Hostapp>>>Django app
+                       Models.py>>Target,Scan,Risk models
+                      views.py>>APIView=Target,ApiView_s=scan,ApiView_Risk=Risks
+HostReact>>React application
+          index.js>>main file
+          app.js>>combines all files
+          headers.js>>for headings 
+          Target.js>>for target page
+                    newtargets.js>>when clicking new target page
+                    prop.js>>for displaying results in target page
+          Scans.js>>for Scan Page
+                    NewScan.jsx>>when clicking new scan page
+                    props.jsx>>New Scan data
+                    prop_scan>>Scanned data displaying in scan page
+        risks.jsx>>for risk page
+                    prop_risk>>displaying of risk data
