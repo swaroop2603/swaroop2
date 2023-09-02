@@ -1,0 +1,33 @@
+/* styles.css */
+
+.container2 {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    font-family: 'Calibri', sans-serif;
+    background-color: white;
+    border-radius: 7px;
+    box-shadow: 0 2px 5px #ccc;
+}
+
+.boldText {
+    font-weight: bold;
+    font-size: 35px;
+    margin-bottom: 15px;
+}
+
+.infoRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 10px;
+}
+
+.flowerBracketItems {
+    cursor: pointer;
+    font-size: 18px;
+    padding: 10px 0;
+    border-bottom: 2px solid transparent;
+    transition: color 0.3s, border-color 0.3s;
+}
