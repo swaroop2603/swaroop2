@@ -11,27 +11,52 @@ from rest_framework.parsers import FileUploadParser
 from django.http import FileResponse,HttpResponse
 from rest_framework.response import Response
 from django.http import FileResponse
+from .pagination import CustomPagination
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.generics import GenericAPIView
+
 class TargetAPI(viewsets.ModelViewSet):       # add this
   serializer_class = Targetserializer         # add this
   queryset = Target.objects.all()
-class ApiView(APIView):
+class ApiView(GenericAPIView):
+    pagination_class = PageNumberPagination  # Use the PageNumberPagination class
+    page_size = 10
+    serializer_class = Targetserializer  # Define the serializer class
+    queryset = Target.objects.all()
+    pagination_class = CustomPagination
     def post(self, request):
         serializer=Targetserializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
            serializer.save()
            return Response(serializer.data)
-    def get(self, request,id=None):
+      # Use the custom pagination class
+
+    def get_object(self, id):
+        try:
+            return Target.objects.get(pk=id)
+        except Target.DoesNotExist:
+            return None
+
+    def get(self, request, id=None):
         if id is not None:
-            try:
-                target = Target.objects.get(pk=id)
+            target = self.get_object(id)
+            if target is not None:
                 serializer = Targetserializer(target)
                 return Response(serializer.data)
-            except Target.DoesNotExist:
-                return Response({"detail": "Target not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Target not found."}, status=status.HTTP_404_NOT_FOUND)
         else:
+            queryset = self.get_queryset()
+            page = self.paginate_queryset(queryset)
+
+            if page is not None:
+                serializer = Targetserializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            # If there is no pagination, return all data
             targets = Target.objects.all()
             serializer = Targetserializer(targets, many=True)
             return Response(serializer.data)
+
     def put(self, request,id=None):  # Change 'id' to 'pk'
         if id is not None:
             try:
@@ -55,10 +80,19 @@ class ApiView(APIView):
                     return Response({"detail": "Target not found."}, status=status.HTTP_404_NOT_FOUND)
             else:
                 return Response({"detail": "Invalid request."}, status=status.HTTP_400_BAD_REQUEST)
-class ApiView_s(APIView):
+class ApiView_s(GenericAPIView):
+    pagination_class = PageNumberPagination  # Use the PageNumberPagination class
+    page_size = 10 
+    serializer_class = Scanserializer  # Define the serializer class
+    queryset = Scan.objects.all()
+    pagination_class = CustomPagination
     def post(self, request):
 
         target_url = "google.com"
+        #target_url = request.data.get('target')
+        
+        #if not target_url:
+        #   return JsonResponse({'detail': 'Target URL is required in the request data'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             all_scan_requests = [
                 ServerScanRequest(server_location=ServerNetworkLocation(hostname=target_url)),
@@ -106,6 +140,7 @@ class ApiView_s(APIView):
         # Create a ContentFile with the JSON data
         json_content_file = ContentFile(json_output_as_str, name='report.json')
         pdf_content = self.create_pdf(json_output_as_str)
+        print(f"\n\n=> Saving scan results to out infun")
         # Return a JSON response with the scan results or a success message
         pdf_content_file = ContentFile(pdf_content, name='report.pdf')
         serializer = Scanserializer(data=request.data)
@@ -172,10 +207,13 @@ class ApiView_s(APIView):
         buffer.seek(0)
         pdf_content = buffer.getvalue()
         buffer.close()
-        
-
+        print(f"\n\n=> Saving scan results to last infun")
         return pdf_content
-
+    def get_object(self, id):
+        try:
+            return Scan.objects.get(pk=id)
+        except Scan.DoesNotExist:
+            return None
     def get(self, request,id=None):
         if id is not None:
             try:
@@ -185,15 +223,43 @@ class ApiView_s(APIView):
             except Scan.DoesNotExist:
                 return Response({"detail": "Target not found."}, status=status.HTTP_404_NOT_FOUND)
         else:
+            queryset = self.get_queryset()
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = Scanserializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            # If there is no pagination, return all data
             targets = Scan.objects.all()
             serializer = Scanserializer(targets, many=True)
             return Response(serializer.data)
-class ApiView_Risk(APIView):
+    def delete(self, request, id=None):
+            if id is not None:
+                try:
+                    target = Scan.objects.get(pk=id)
+                    target.delete()  # Delete the target
+                    return Response({"detail": "Target deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+                except Scan.DoesNotExist:
+                    return Response({"detail": "Target not found."}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                return Response({"detail": "Invalid request."}, status=status.HTTP_400_BAD_REQUEST)
+            
+class ApiView_Risk(GenericAPIView):
+    pagination_class = PageNumberPagination  # Use the PageNumberPagination class
+    page_size = 10
+    serializer_class = Riskserializer # Define the serializer class
+    queryset = Risk.objects.all()
+    pagination_class = CustomPagination
     def post(self, request):
         serializer=Riskserializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
            serializer.save()
            return Response(serializer.data)
+    def get_object(self, id):
+        try:
+            return Risk.objects.get(pk=id)
+        except Risk.DoesNotExist:
+            return None
     def get(self, request,id=None):
         if id is not None:
             try:
@@ -203,9 +269,18 @@ class ApiView_Risk(APIView):
             except Scan.DoesNotExist:
                 return Response({"detail": "Target not found."}, status=status.HTTP_404_NOT_FOUND)
         else:
+            queryset = self.get_queryset()
+            page = self.paginate_queryset(queryset)
+
+            if page is not None:
+                serializer = Riskserializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            # If there is no pagination, return all data
             targets = Risk.objects.all()
             serializer = Riskserializer(targets, many=True)
             return Response(serializer.data)
+            
 # views.py
 
 # views.py
