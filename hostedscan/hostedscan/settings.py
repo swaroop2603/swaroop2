@@ -135,3 +135,19 @@ MEDIA_URL = '/media/'
 APPEND_SLASH = False
 CORS_ALLOW_ALL_ORIGINS = True
 SSLYZE_PATH = '/path/to/sslyze'
+from apscheduler.schedulers.background import BackgroundScheduler
+
+SCHEDULER_API_ENABLED = True  # Enable the APScheduler API
+SCHEDULER_DEFAULT_JOBS = [
+    # Define any default jobs you want to run automatically
+    {
+        'id': 'my_default_job',
+        'func': 'yourapp.views.default_job_function',  # Modify this to point to your default job function
+        'trigger': 'interval',
+        'seconds': 3600,  # Adjust the interval as needed (e.g., run every hour)
+    },
+]
+
+# Create an APScheduler instance
+scheduler = BackgroundScheduler()
+scheduler.start()
