@@ -43,7 +43,11 @@ function Scans() {
   const [pageSize, setPageSize] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
   const [pagesArray, setPagesArray] = useState([]);
-       
+  const [sortField, setSortField] = useState('date'); // Default sorting field
+  const [sortOrder, setSortOrder] = useState('asc');
+  
+  const [refreshLoading, setRefreshLoading] = useState(Array(data.length).fill(false));
+  const [refreshingItemIndex, setRefreshingItemIndex] = useState(null);
     useEffect(() => {
         fetchData(); // Fetch data initially
       }, [currentPage]); // Update data when currentPage or pageSize changes
@@ -57,10 +61,12 @@ function Scans() {
       };
       const fetchData = async () => {
         try {
-          const response = await axios.get(`http://127.0.0.1:8000/api/scan`, {
+          const response = await axios.get(`http://127.0.0.1:8000/api/scans`, {
             params: {
               page: currentPage, // Use currentPage to specify the current page
-              page_size: pageSize, // Use pageSize to specify the number of items per page
+              page_size: pageSize, 
+              sortField: sortField, // Include the sorting field in the request
+              sortOrder: sortOrder,// Use pageSize to specify the number of items per page
             },
           });
       
@@ -73,6 +79,49 @@ function Scans() {
           console.error('An error occurred while fetching data:', error);
         }
       };
+      const fetchScanData = async (id) => {
+        try {
+          // Make a GET request to fetch scan data by ID
+          const response = await axios.get(`http://127.0.0.1:8000/api/scans/${id}`);
+          return response.data; // Return the fetched data
+        } catch (error) {
+          console.error('Error fetching scan data:', error);
+          return null; // Return null if there's an error
+        }
+      };
+      const handlerefresh = async(id,index)=>{
+        try {
+          setRefreshingItemIndex(index); // Track the index of the item being refreshed
+          setRefreshLoading((prevState) => {
+            const newState = [...prevState];
+            newState[index] = true; // Start loading animation for the specific item
+            return newState;})
+
+          const scanData = await fetchScanData(id);
+          const requestData={
+            target:scanData.target,
+            label:scanData.label,
+          }
+          const response = await axios.post("http://127.0.0.1:8000/api/scans", requestData).then(() => {
+            
+  
+          
+          });
+        } catch (error) {
+          console.error('An error occurred:', error);
+          
+        }
+        finally {
+          setTimeout(() => {
+            setRefreshLoading((prevState) => {
+              const newState = [...prevState];
+              newState[index] = false; // Stop loading animation for the specific item
+              return newState;
+            });
+            setRefreshingItemIndex(null);
+          }, 1000); // Set loading state to false when done
+        }
+      }
     const toggleWidget =()=> {
         
         setWidgetVisible(!widgetVisible);
@@ -143,31 +192,26 @@ function Scans() {
       const evenRowStyle = {
         backgroundColor: 'white', // Set your desired background color for even rows
       };
-    const handleButtonClick = async (id) => {
+      const handleButtonClick = async (id) => {
         try {
           // Make a GET request to your server to fetch the PDF data
-          const response = await axios.get(`http://127.0.0.1:8000/api/scan/${id}`, {});
-      
-          const pdf = response.data.pdf_file;
-          console.log(pdf)
-          console.log(response.data)
-      
+          const response = await axios.get(`http://127.0.0.1:8000/api/scan/pdf/${id}`, {
+            responseType: 'blob', // Specify the response type as blob
+          });
+    
           // Check if the PDF file is not corrupted
-          if (pdf.length === 0) {
+          if (!response.data || response.data.size === 0) {
             throw new Error('PDF file is corrupted');
           }
-      
-          // Create a blob from the PDF data
-          const pdfBlob = new Blob([pdf], { type: 'application/pdf' });
-      
-          // Create a URL for the blob
+    
+          // Create a blob URL for the PDF blob
+          const pdfBlob = new Blob([response.data], { type: 'application/pdf' });
           const pdfBlobUrl = URL.createObjectURL(pdfBlob);
-      
-          // Open the PDF in a new tab
+    
+          // Open the PDF in a new window
           window.open(pdfBlobUrl, '_blank');
         } catch (error) {
           console.error('Error fetching or opening PDF:', error);
-          console.log("error")
         }
       };
       
@@ -225,7 +269,28 @@ function Scans() {
             <td style={{ textAlign: 'center'}}>Succeeded</td>
            <td style={{ textAlign: 'center'}}> <button style={buttonStyle} onClick={() => handleButtonClick(item.id)}><FaFilePdf /></button></td>
             <td style={{ textAlign: 'center'}}>{calculateTimeDifference(item.date)} </td>
-            <td style={{ textAlign: 'center'}}><FontAwesomeIcon icon={faRefresh}  /> </td>
+            <td style={{ textAlign: 'center'}} > <button
+              style={buttonStyle}
+              onClick={() => handlerefresh(item.id, index)}
+              disabled={refreshLoading[index]} // Disable the button during refresh for the specific item
+            >
+              {refreshLoading[index] && index === refreshingItemIndex ? (
+                <div
+                  style={{
+                    border: '4px solid rgba(255, 255, 255, 0.3)',
+                    borderRadius: '50%',
+                    borderTop: '4px solid #3498db',
+                    width: '20px',
+                    height: '20px',
+                    animation: 'spin 1s linear infinite',
+                    margin: '0 auto',
+                  }}
+                ></div> // Internal CSS for the loading animation
+              ) : (
+                <FontAwesomeIcon icon={faRefresh} />
+              )}
+            </button>
+</td>
      </tr>
       ))}
                 </table>
