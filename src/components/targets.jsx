@@ -33,6 +33,8 @@ function Target() {
 const [pageSize, setPageSize] = useState(10);
 const [isLoading, setIsLoading] = useState(true);
 const [pagesArray, setPagesArray] = useState([]);
+const [sortField, setSortField] = useState('date'); // Default sorting field
+const [sortOrder, setSortOrder] = useState('asc');
   const handlePageChange = (page) => {
     setCurrentPage(page);
   };
@@ -69,7 +71,9 @@ const [pagesArray, setPagesArray] = useState([]);
           const response = await axios.get(`http://127.0.0.1:8000/api/target`, {
             params: {
               page: currentPage, // Use currentPage to specify the current page
-              page_size: pageSize, // Use pageSize to specify the number of items per page
+              page_size: pageSize,
+              sortField: sortField, // Include the sorting field in the request
+              sortOrder: sortOrder, // Use pageSize to specify the number of items per page
             },
           });
       
