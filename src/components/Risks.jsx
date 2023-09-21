@@ -56,7 +56,15 @@ function Risks() {
   const [pageSize, setPageSize] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
   const [pagesArray, setPagesArray] = useState([]);
-    const handlePageChange = (page) => {
+  const [sortField, setSortField] = useState('date'); // Default sorting field
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [showExtraData, setShowExtraData] = useState(false);
+
+  // Function to toggle the visibility of extra data
+  const toggleExtraData = () => {
+    setShowExtraData(!showExtraData);
+  }; 
+  const handlePageChange = (page) => {
       setCurrentPage(page);
     };
   useEffect(() => {
@@ -72,7 +80,9 @@ function Risks() {
       const response = await axios.get(`http://127.0.0.1:8000/api/risks`, {
         params: {
           page: currentPage, // Use currentPage to specify the current page
-          page_size: pageSize, // Use pageSize to specify the number of items per page
+          page_size: pageSize, 
+          sortField: sortField, // Include the sorting field in the request
+          sortOrder: sortOrder,/// Use pageSize to specify the number of items per page
         },
       });
   
@@ -189,37 +199,7 @@ function Risks() {
   return (
     <div style={{backgroundColor:"#e0f3ff"}}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '20px' }}>
-        <button
-          onClick={toggleWidget}
-          style={{
-            ...buttonStyle,
-            onMouseEnter: (e) => {
-              e.target.style.backgroundColor = buttonHoverStyle.backgroundColor;
-              e.target.style.color = buttonHoverStyle.color;
-            },
-            onMouseLeave: (e) => {
-              e.target.style.backgroundColor = buttonStyle.backgroundColor;
-              e.target.style.color = buttonStyle.color;
-            },
-          }}
-        >
-          Add Targets
-        </button>
-        <button
-          style={{
-            ...buttonStyle1,
-            onMouseEnter: (e) => {
-              e.target.style.backgroundColor = buttonHoverStyle1.backgroundColor;
-              e.target.style.color = buttonHoverStyle1.color;
-            },
-            onMouseLeave: (e) => {
-              e.target.style.backgroundColor = buttonStyle1.backgroundColor;
-              e.target.style.color = buttonStyle1.color;
-            },
-          }}
-        >
-          New Scan
-        </button>
+
       </div>
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
   <div style={{ width: '60%' }}>
@@ -274,18 +254,7 @@ function Risks() {
             >
               THREAT LEVEL
             </th>
-            <th
-              style={{
-                textAlign: 'center',
-                width: '14.28%',
-                ...flowerBracketItems,
-                color: getColorForItem('OPENVAS QOD'),
-              }}
-              onMouseEnter={() => handleMouseEnter('OPENVAS QOD')}
-              onMouseLeave={handleMouseLeave}
-            >
-              OPENVAS QOD
-            </th>
+            
             <th
               style={{
                 textAlign: 'center',
@@ -313,29 +282,68 @@ function Risks() {
           </tr>
         </thead>
         <tbody>
-          {data.map((item, index) => (
-            <tr key={item.id} style={index % 2 === 0 ? evenRowStyle : oddRowStyle}>
-              <td style={{ textAlign: 'center'}}>{item.Title}</td>
-              <td style={{ textAlign: 'center'}}>
-                <span >
-                  {item.Scantype}
-                </span>
-              </td >
-              <td style={{ textAlign: 'center'}}>{item.target}</td>
-              <td style={{ textAlign: 'center'}}>
-                <span style={{ color: getColorForValue(item.Thread_Level) }}>
-                  {item.Thread_Level}
-                </span>
-              </td>
-              <td style={{ textAlign: 'center'}}>{item.openvas_QOD * 100}</td>
-              <td style={{ textAlign: 'center'}}>
-                <span style={{ color: getColorForValue(item.STatus) }}>
-                  {item.STatus}
-                </span>
-              </td >
-              <td style={{ textAlign: 'center'}}>{calculateTimeDifference(item.date)}</td>
-            </tr>
-          ))}
+        {data.map((item, index) => {
+          console.log(item)
+          console.log(item.Title)
+    // Check if item.title is defined
+    if (!item.Title) return null; // Skip items without a title
+
+    // Split the item.title string into an array
+    const titlesArray = item.Title
+      .replace('[', '') // Remove opening bracket
+      .replace(']', '') // Remove closing bracket
+      .split(',')
+      .map((Title) => Title.trim()); 
+      const Scantypearr= item.Scantype
+      .replace('[', '') // Remove opening bracket
+      .replace(']', '') // Remove closing bracket
+      .split(',')
+      .map((Scantype) => Scantype.trim());
+      const targetArray = item.target
+      .replace('[', '') // Remove opening bracket
+      .replace(']', '') // Remove closing bracket
+      .split(',')
+      .map((target) => target.trim());
+      const Thread_Level_array = item.Thread_Level
+      .replace('[', '') // Remove opening bracket
+      .replace(']', '') // Remove closing bracket
+      .split(',')
+      .map((Thread_Level) => Thread_Level.trim());
+      const STatusArray= item.STatus
+      .replace('[', '') // Remove opening bracket
+      .replace(']', '') // Remove closing bracket
+      .split(',')
+      .map((STatus) => STatus.trim());
+      
+    return (
+      <tr key={item.id} style={index % 2 === 0 ? evenRowStyle : oddRowStyle}>
+       
+        <td style={{ textAlign: 'center' }}>
+          
+            <span >{titlesArray[0]}</span>
+          
+        
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span>
+                        {Scantypearr[0]}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>{targetArray[0]}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{ color: getColorForValue(Thread_Level_array[0]) }}>
+                        {Thread_Level_array[0]}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{ color: getColorForValue(STatusArray[0]) }}>
+                        {STatusArray[0]}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>{calculateTimeDifference(item.date)}</td>
+                  </tr>
+                );
+              })}
         </tbody>
       </table>
       </div>
