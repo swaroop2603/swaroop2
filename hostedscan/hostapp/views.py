@@ -18,6 +18,22 @@ from uuid import uuid4
 import re
 from urllib.parse import urlparse
 from django.db.models import F, Value
+from reportlab.platypus.flowables import Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, PageBreak
+from reportlab.lib import colors
+from reportlab.pdfgen import canvas
+from .localsettings import table,font,Output
+from .header import headertable
+from reportlab.lib.pagesizes import A4
+
+from .footer import footertable
+import math
+
+from reportlab.platypus import Table,Paragraph
+from reportlab.lib import colors
+from reportlab.lib.styles import ParagraphStyle
+import json
+from datetime import datetime
 class TargetAPI(viewsets.ModelViewSet):       # add this
   serializer_class = Targetserializer         # add this
   queryset = Target.objects.all()
@@ -224,7 +240,7 @@ class ApiView_s(GenericAPIView):
                                         first_scan_result.tls_1_3_cipher_suites.result.is_tls_version_supported)
             risks_list.append([risktls13name, "TLS 1.3 vulnerability", "Critical", "Open"])
             
-            print(f"{title}")
+            #print(f"{title}")
             title.append(risks_list[1][1])
             threadlvl.append(risks_list[1][2])
             status.append(risks_list[1][3])
@@ -235,7 +251,7 @@ class ApiView_s(GenericAPIView):
                                         first_scan_result.tls_1_2_cipher_suites.result.is_tls_version_supported)
             risks_list.append([risktls12name, "TLS 1.2 generic", "High", "Open"])
         
-            print(f"{title}")
+            #print(f"{title}")
             title.append(risks_list[2][1])
             threadlvl.append(risks_list[2][2])
             status.append(risks_list[2][3])
@@ -246,7 +262,7 @@ class ApiView_s(GenericAPIView):
                                         first_scan_result.tls_1_1_cipher_suites.result.is_tls_version_supported)
             risks_list.append([risktls11name, "TLS 1.1 support", "Medium", "Open"])
             
-            print(f"{title}")
+            #print(f"{title}")
             title.append(risks_list[3][1])
             threadlvl.append(risks_list[3][2])
             status.append(risks_list[3][3])
@@ -257,7 +273,7 @@ class ApiView_s(GenericAPIView):
                                         first_scan_result.tls_1_0_cipher_suites.result.is_tls_version_supported)
             risks_list.append([risktls10name, "TLS 1.0 related", "Low", "Open"])
             
-            print(f"{title}")
+            #print(f"{title}")
             title.append(risks_list[4][1])
             threadlvl.append(risks_list[4][2])
             status.append(risks_list[4][3])
@@ -273,7 +289,7 @@ class ApiView_s(GenericAPIView):
             status.append(risks_list[5][3])
             url.append(target_url)
             scantype.append("ssylze")
-            print(f"{title}")
+            #print(f"{title}")
             risk5=Risk(
                     Title=list(title),
                     Scantype=scantype,
@@ -282,8 +298,8 @@ class ApiView_s(GenericAPIView):
                     STatus=status,
                 )
             risk5.save()
-            print(f"{title}")
-            print(f"{risks_list}")
+            #print(f"{title}")
+            #print(f"{risks_list}")
             return risks_list
         risks_list = get_risks(all_server_scan_results)
         return JsonResponse({'detail': 'Scan completed successfully'}, status=status.HTTP_201_CREATED)
@@ -304,35 +320,912 @@ class ApiView_s(GenericAPIView):
         return json_output_as_str
 
     def create_pdf(self, json_data):
+        print(f"inside pdf1")
+        data=json.loads(json_data)
+
+        # Access "connectivity_result" within each object in the "server_scan_results" array
+        server_scan_results = data.get("server_scan_results", [])  # Get the array, default to empty list if not present
+        date_scans_started=data.get("date_scans_started")
+        date_obj = datetime.strptime(date_scans_started, "%Y-%m-%dT%H:%M:%S.%f")
+
+
+        date_scans_started = date_obj.strftime("%B %d, %Y")
+        for idx, result in enumerate(server_scan_results):
+            connectivity_result = result.get("connectivity_result",
+                                            {})  # Get the connectivity_result, default to empty dictionary if not present
+            cipher_suite_supported = connectivity_result.get("cipher_suite_supported")
+            connectivity_status=result.get("connectivity_status")
+            tls_version = connectivity_result.get("highest_tls_version_supported")
+            supports_ecdh_key_exchange=connectivity_result.get("supports_ecdh_key_exchange")
+
+            ecdh_key_exchange="Rejected"
+            if supports_ecdh_key_exchange is True:
+                ecdh_key_exchange="accepted"
+
+            server_location=result.get("server_location",{})
+            host=server_location.get("hostname")
+            ip_address=server_location.get("ip_address")
+            port=server_location.get("port")
+            scan_result=result.get("scan_result",{})
+            #print(scan_result)
+            certificate_info=scan_result.get("certificate_info",{})
+            certificate_result=certificate_info.get("result",{})
+            certificate_deployments=certificate_result.get("certificate_deployments",[])
+            #print(len(certificate_deployments))
+            elliptic_curves=scan_result.get("elliptic_curves",{})
+            #print(elliptic_curves)
+            result=elliptic_curves.get("result",{})
+            #print(result)
+            elliptic_rejected_curves=result.get("rejected_curves",[])
+            elliptic_supported_curves=result.get("supported_curves",[])
+            supported_elliptic_list=[]
+            rejected_elliptic_list=[]
+            for curve in elliptic_supported_curves:
+                name=curve.get("name")
+                supported_elliptic_list.append(name)
+                #print("supported curve name",name)
+            for curve in elliptic_rejected_curves:
+                name = curve.get("name")
+                rejected_elliptic_list.append(name)
+                #print("Rejected Curve Name:", name)
+            #print(supported_elliptic_list)
+            tls_fallback_scsv=scan_result.get("tls_fallback_scsv")
+            result_tls=tls_fallback_scsv.get("result")
+            supports_fallback_scsv=result_tls.get("supports_fallback_scsv")
+            #print(supports_fallback_scsv)
+            heartbleed=scan_result.get("heartbleed")
+            result_heart=heartbleed.get("result")
+            is_vulnerable_to_heartbleed=result_heart.get("is_vulnerable_to_heartbleed")
+            status_heart=heartbleed.get("status")
+            if is_vulnerable_to_heartbleed is True:
+                is_vulnerable_to_heartbleed="Not Vunerable to heart bleed"
+            else:
+                is_vulnerable_to_heartbleed="Vunerable to heart bleed"
+            #print(is_vulnerable_to_heartbleed)
+            #print(status_heart)
+            ssl_2_0_cipher_cuites=scan_result.get("ssl_2_0_cipher_suites")
+            result_ssl_2_0=ssl_2_0_cipher_cuites.get("result")
+            accepted_cipher_suites_ssl_2_0=result_ssl_2_0.get("accepted_cipher_suites",[])
+            #print(accepted_cipher_suites_ssl_2_0)
+            for curve in accepted_cipher_suites_ssl_2_0:
+                cipher_suite = curve.get("cipher_suite")
+                ephemeral_key=curve.get("ephemeral_key")
+                if ephemeral_key != None:
+                    size=ephemeral_key.get("size")
+                    curve_name=ephemeral_key.get("curve_name")
+                    type_name=ephemeral_key.get("type_name")
+                    #print(size)
+                    #print(type_name)
+                    #print(curve_name)
+                name = cipher_suite.get("name")
+                #print("accepted ssl_2_0 Curve Name:", name)
+            rejected_cipher_suites_ssl_2_0=result_ssl_2_0.get("rejected_cipher_suites",[])
+            # Print the values for each result
+            #print(rejected_cipher_suites_ssl_2_0)
+            for curve in rejected_cipher_suites_ssl_2_0:
+                cipher_suite = curve.get("cipher_suite")
+                name = cipher_suite.get("name")
+                #print("Rejected ssl_2_0 Curve Name:", name)
+            ssl_2_0_cipher_cuites=scan_result.get("ssl_2_0_cipher_suites")
+            result_ssl_2_0=ssl_2_0_cipher_cuites.get("result")
+            accepted_cipher_suites_ssl_2_0=result_ssl_2_0.get("accepted_cipher_suites",[])
+            #print(accepted_cipher_suites_ssl_2_0)
+            for curve in accepted_cipher_suites_ssl_2_0:
+                cipher_suite = curve.get("cipher_suite")
+                name = cipher_suite.get("name")
+                ephemeral_key = curve.get("ephemeral_key")
+                if ephemeral_key != None:
+                    size=ephemeral_key.get("size")
+                    curve_name=ephemeral_key.get("curve_name")
+                    type_name=ephemeral_key.get("type_name")
+                    #print(size)
+                    #print(type_name)
+                    #print(curve_name)
+            #print("Rejected ssl_2_0 Curve Name:", name)
+            ssl_3_0_cipher_cuites=scan_result.get("ssl_3_0_cipher_suites")
+            result_ssl_3_0=ssl_3_0_cipher_cuites.get("result")
+            accepted_cipher_suites_ssl_3_0=result_ssl_3_0.get("accepted_cipher_suites",[])
+            #print(accepted_cipher_suites_ssl_2_0)
+            for curve in accepted_cipher_suites_ssl_3_0:
+                cipher_suite = curve.get("cipher_suite")
+                name = cipher_suite.get("name")
+                ephemeral_key = curve.get("ephemeral_key")
+                if ephemeral_key != None:
+                    size=ephemeral_key.get("size")
+                    curve_name=ephemeral_key.get("curve_name")
+                    type_name=ephemeral_key.get("type_name")
+                    #print(size)
+                    #print(type_name)
+                    #print(curve_name)
+                #print("accepted ssl_3_0 Curve Name:", name)
+            rejected_cipher_suites_ssl_3_0=result_ssl_3_0.get("rejected_cipher_suites",[])
+            # Print the values for each result
+            #print(rejected_cipher_suites_ssl_3_0)
+            for curve in rejected_cipher_suites_ssl_3_0:
+                cipher_suite = curve.get("cipher_suite")
+                name = cipher_suite.get("name")
+                #print("Rejected ssl_2_0 Curve Name:", name)
+            tls_1_0_cipher_cuites=scan_result.get("tls_1_0_cipher_suites")
+            result_tls_1_0=tls_1_0_cipher_cuites.get("result")
+            accepted_cipher_suites_tls_1_0=result_tls_1_0.get("accepted_cipher_suites",[])
+            #print(accepted_cipher_suites_ssl_2_0)
+            for curve in accepted_cipher_suites_tls_1_0:
+                cipher_suite = curve.get("cipher_suite")
+                name = cipher_suite.get("name")
+                ephemeral_key = curve.get("ephemeral_key")
+                if ephemeral_key != None:
+                    size=ephemeral_key.get("size")
+                    curve_name=ephemeral_key.get("curve_name")
+                    type_name=ephemeral_key.get("type_name")
+                    #print(size)
+                    #print(type_name)
+                    #print(curve_name)
+                #print("accepted tls_1_0 Curve Name:", name)
+            rejected_cipher_suites_tls_1_0=result_tls_1_0.get("rejected_cipher_suites",[])
+            # Print the values for each result
+            #print(rejected_cipher_suites_tls_1_0)
+            for curve in rejected_cipher_suites_tls_1_0:
+                cipher_suite = curve.get("cipher_suite")
+                name = cipher_suite.get("name")
+                #print("Rejected tls_1_0 Curve Name:", name)
+            tls_1_1_cipher_cuites = scan_result.get("tls_1_1_cipher_suites")
+            result_tls_1_1 = tls_1_1_cipher_cuites.get("result")
+            accepted_cipher_suites_tls_1_1 = result_tls_1_1.get("accepted_cipher_suites", [])
+            # print(accepted_cipher_suites_ssl_2_0)
+            for curve in accepted_cipher_suites_tls_1_1:
+                cipher_suite = curve.get("cipher_suite")
+                name = cipher_suite.get("name")
+                ephemeral_key = curve.get("ephemeral_key")
+                if ephemeral_key != None:
+                    size=ephemeral_key.get("size")
+                    curve_name=ephemeral_key.get("curve_name")
+                    type_name=ephemeral_key.get("type_name")
+                    #print(size)
+                    #print(type_name)
+                    #print(curve_name)
+                #print("accepted tls_1_1 Curve Name:", name)
+            rejected_cipher_suites_tls_1_1 = result_tls_1_1.get("rejected_cipher_suites", [])
+            # Print the values for each result
+            #print(rejected_cipher_suites_tls_1_1)
+            for curve in rejected_cipher_suites_tls_1_1:
+                cipher_suite = curve.get("cipher_suite")
+                name = cipher_suite.get("name")
+                #print("Rejected tls_1_1 Curve Name:", name)
+            tls_1_2_cipher_cuites = scan_result.get("tls_1_2_cipher_suites")
+            result_tls_1_2 = tls_1_2_cipher_cuites.get("result")
+            accepted_cipher_suites_tls_1_2 = result_tls_1_2.get("accepted_cipher_suites", [])
+            # print(accepted_cipher_suites_ssl_2_0)
+            for curve in accepted_cipher_suites_tls_1_2:
+                cipher_suite = curve.get("cipher_suite")
+                name = cipher_suite.get("name")
+                ephemeral_key = curve.get("ephemeral_key")
+                if ephemeral_key != None:
+                    size=ephemeral_key.get("size")
+                    curve_name=ephemeral_key.get("curve_name")
+                    type_name=ephemeral_key.get("type_name")
+                    #print(size)
+                    #print(type_name)
+                    #print(curve_name)
+                #print("accepted tls_1_2 Curve Name:", name)
+            rejected_cipher_suites_tls_1_2 = result_tls_1_2.get("rejected_cipher_suites", [])
+            # Print the values for each result
+            #print(rejected_cipher_suites_tls_1_2)
+            for curve in rejected_cipher_suites_tls_1_2:
+                cipher_suite = curve.get("cipher_suite")
+                name = cipher_suite.get("name")
+                #print("Rejected tls_1_2 Curve Name:", name)
+            tls_1_3_cipher_cuites = scan_result.get("tls_1_3_cipher_suites")
+            result_tls_1_3 = tls_1_3_cipher_cuites.get("result")
+            accepted_cipher_suites_tls_1_3 = result_tls_1_3.get("accepted_cipher_suites", [])
+            # print(accepted_cipher_suites_ssl_2_0)
+            for curve in accepted_cipher_suites_tls_1_3:
+                cipher_suite = curve.get("cipher_suite")
+                name = cipher_suite.get("name")
+                ephemeral_key = curve.get("ephemeral_key")
+                if ephemeral_key != None:
+                    size=ephemeral_key.get("size")
+                    curve_name=ephemeral_key.get("curve_name")
+                    type_name=ephemeral_key.get("type_name")
+                    #print(size)
+                    #print(type_name)
+                    #print(curve_name)
+                #print("accepted tls_1_3 Curve Name:", name)
+            rejected_cipher_suites_tls_1_3 = result_tls_1_3.get("rejected_cipher_suites", [])
+            # Print the values for each result
+            #print(rejected_cipher_suites_tls_1_3)
+            for curve in rejected_cipher_suites_tls_1_3:
+                cipher_suite = curve.get("cipher_suite")
+                name = cipher_suite.get("name")
+                #print("Rejected tls_1_3 Curve Name:", name)
+            robot=scan_result.get("robot")
+            status_robot=robot.get("status")
+            result_robot=robot.get("result")
+            result_robot=result_robot.get("robot_result")
+            session_renegotiation=scan_result.get('session_renegotiation',{})
+            result_session_renegotiation=session_renegotiation.get('result',{})
+            is_vulnerable_to_client_renegotiation_dos_renegotiation=result_session_renegotiation.get("is_vulnerable_to_client_renegotiation_dos")
+            supports_secure_renegotiation_renegotiation=result_session_renegotiation.get("supports_secure_renegotiation")
+            tls_compression=scan_result.get("tls_compression")
+            status_tls_compression=tls_compression.get("status")
+            result_tls_compression=tls_compression.get("result")
+            result_tls_compression=result_tls_compression.get("supports_compression")
+            session_renegotiation_status=session_renegotiation.get("status")
+            #print(result_tls_compression)
+            #print(status_tls_compression)
+
+            #print(result_robot)
+            #print(status_robot)
+            tls_1_3_early_data = scan_result.get("tls_1_3_early_data")
+            result_tls_1_3_early_data = tls_1_3_early_data.get("result")
+            #print(port)
+            #print(ip_address)
+            #print(f"Result {idx + 1}:")
+            #print("Cipher Suite Supported:", cipher_suite)
+            #print("Highest TLS Version Supported:", tls_version)
+        def bodytable(widths,heights,i):
+            print(f"inside pdf1 body")
+            widthlist=[
+                widths*5/100,
+                widths*90/100,
+                widths*5/100,
+            ]
+            if i==1:
+                res=page1(widthlist[1],heights)
+                return res
+            elif i==2:
+                res=page2(widthlist[1],heights)
+                return res
+            elif i == 3:
+                res = page3(widthlist[1], heights)
+                return res
+            elif i == 4:
+                res = page4(widthlist[1], heights)
+                return res
+        def page1(widths,heights):
+            widthlist=[
+                widths*5/100,
+                widths*90/100,
+                widths*5/100
+            ]
+            heightlist=[
+                heights*2/100,
+                heights*33/100,
+                heights*4/100,
+                heights*8/100,
+                heights*8/100,
+                heights*16/100,
+                heights*9/100,
+                heights*15/100,
+                heights*2.5/100,
+                heights*2.5/100
+            ]
+            res=Table([
+                [''],
+                [''],
+                [page1text1(widthlist[1],heightlist[1])],
+                [''],
+                [page1text2(widthlist[1],heightlist[3])],
+                [''],
+                [''],
+                [''],
+                [''],
+                ['']
+                
+            ],widthlist[1],heightlist)
+            color=colors.HexColor('#87CEEB')
+            res.setStyle([
+                #('GRID',(0,0),(-1,-1),1,'red'),
+                #('TEXTCOLOR',(0,1),(-1,-1),'white'),
+                ('FONTNAME',(0,1),(0,1),'caliber-bold'),
+                ('FONTSIZE',(0,1),(0,1),30),
+                ('BOTTOMPADDING',(0,1),(0,1),30),
+                ('BACKGROUND',(0,1),(-1,-2),color),
+                ('LEFTPADDING',(0,0),(-1,-1),20),
+                ('LINEBELOW',(0,-1),(-1,-1),1,'black')
+            ])
+            return res
+        def page1text1(widths,heights):
+
+            text=f"Report on {host}"
+            
+            res=Table([
+                [text],
+            ],widths,heights)
+            res.setStyle([
+                ('TEXTCOLOR',(0,0),(-1,-1),'white'),
+                ('FONTNAME',(0,0),(-1,-1),'caliber-bold'),
+                ('FONTSIZE',(0,0),(-1,-1),30),
+            ])
+            return res
+        def page1text2(widths,heights):
+            text1="S3 Infotech"
+            text2=f"{date_scans_started}"
+            heightlist=[
+                heights*20/100,
+                heights*50/100,
+            ]
+            res=Table([
+                [text1],
+                [text2]
+            ],widths,heightlist)
+            res.setStyle([
+                ('TEXTCOLOR',(0,0),(-1,-1),'white'),
+                ('FONTNAME',(0,0),(-1,-1),'caliber'),
+                ('FONTSIZE',(0,0),(-1,-1),20),
+            ])
+            return res
+
+
+        def page2(widths,heights):
+            widthlist=[
+                widths*5/100,
+                widths*90/100,
+                widths*5/100
+            ]
+            heightlist=[
+                heights*8/100,
+                heights*3/100,
+                heights*3/100,
+                heights*3/100,
+                heights*12/100,
+                heights*1.5/100,
+                heights*3/100,
+                heights*9.5/100,
+                heights*1.5/100,
+                heights*3/100,
+                heights*12/100,
+                heights*40/100,
+            ]
+            res=Table([
+                [page2text1(widthlist[1],heightlist[0])],
+                [''],
+                [page2text2(widthlist[1],heightlist[2])],
+                [''],
+                [page2text3(widthlist[1],heightlist[4])],
+                [''],
+                [page2text4(widthlist[1],heightlist[6])],
+                
+                [page2text5(widthlist[1],heightlist[7])],
+                [''],
+                [page2text6(widthlist[1],heightlist[9])],
+                [page2text7(widthlist[1],heightlist[10])],
+                [''],
+            ],widthlist[1],heightlist)
+            res.setStyle([
+                #('GRID',(0,0),(-1,-1),1,'red'),
+                ('LINEBELOW',(0,-1),(-1,-1),1,'black')
+            ])
+            return res
+        def page2text1(widths,heights):
+            text="Server Information"
+            res=Table([
+                [text]
+            ],widths,heights)
+            color=colors.HexColor('#87CEEB')
+            res.setStyle([
+                ('TEXTCOLOR',(0,0),(-1,-1),'white'),
+                ('FONTNAME',(0,0),(-1,-1),'Helvetica'),
+                ('FONTSIZE',(0,0),(-1,-1),20),
+                ('BACKGROUND',(0,0),(0,0),color),
+                ('BOTTOMPADDING',(0,0),(-1,-1),30)
+
+            ])
+            return res
+        def page2text2(widths,heights):
+            text="Target(s)"
+            res=Table([
+                [text]
+            ],widths,heights)
+            color=colors.HexColor("#89CFF0")
+            res.setStyle([
+                ('TEXTCOLOR',(0,0),(-1,-1),color),
+                ('FONTNAME',(0,0),(-1,-1),'caliber'),
+                ('FONTSIZE',(0,0),(-1,-1),20),
+            ])
+            return res
+        def page2text3(widths,heights):
+            heightlist=[
+                heights*15/100,
+                heights*10/100,
+                heights*15/100,
+                heights*15/100,
+                heights*15/100,
+                heights*15/100,
+            ]
+            text1="The Scanned information for the website is as follows"
+            text2=f"Host Name: {host}"
+            text3=f"IP_address: {ip_address}"
+            text4=f"Port: {port}"
+
+            res=Table([
+                [text1],[''],[text2],[text3],[text4],['']
+                ],widths,heightlist)
+            res.setStyle([
+                #('GRID',(0,0),(-1,-1),1,'red'),
+                ('FONTNAME',(0,0),(-1,-1),'caliber'),
+                ('FONTSIZE',(0,0),(-1,-1),10),
+            ])
+            return res
+        def page2text4(widths,heights):
+            text="Control(s)"
+            res=Table([
+                [text]
+            ],widths,heights)
+            color=colors.HexColor("#89CFF0")
+            res.setStyle([
+                #('GRID',(0,0),(-1,-1),1,'red'),
+                ('TEXTCOLOR',(0,0),(-1,-1),color),
+                ('FONTNAME',(0,0),(-1,-1),'caliber'),
+                ('FONTSIZE',(0,0),(-1,-1),20),
+            ])
+            return res
+        def page2text5(widths,heights):
+            test1="The in-scope information assets were measured against the following controls:"
+            test2="• Open Web Application Security Project (OWASP)"
+            text3="• Penetration Testing Execution Standard (PTES)"
+            heightlist=[
+                heights*10/100,
+                heights*20/100,
+                heights*10/100,
+                heights*20/100,
+                heights*20/100,
+            ]
+            bullet_style = ParagraphStyle(name="BulletStyle", leftIndent=20, bulletIndent=10, bulletFontSize=10)
+            res=Table([
+                [''],
+                [test1],
+                [''],
+                [Paragraph(test2, bullet_style)],
+                [Paragraph(text3,bullet_style)]
+            ],widths,heightlist)
+            res.setStyle([
+                #('GRID',(0,0),(-1,-1),1,'red'),
+                ('FONTNAME',(0,0),(-1,-1),'caliber'),
+                ('FONTSIZE',(0,0),(-1,-1),10),
+
+            ])
+            return res
+        def page2text6(widths,heights):
+            text="Timetable"
+            res=Table([
+                [text]
+            ],widths,heights)
+            color=colors.HexColor("#89CFF0")
+            res.setStyle([
+                #('GRID',(0,0),(-1,-1),1,'red'),
+                ('TEXTCOLOR',(0,0),(-1,-1),color),
+                ('FONTNAME',(0,0),(-1,-1),'caliber'),
+                ('FONTSIZE',(0,0),(-1,-1),20),
+            ])
+            return res
+        def page2text7(widths,heights):
+            test1="The following testing timetable is shown below:"
+            test2="• Test Start: 05/01/17"
+            text3="• Test End: 05/05/17"
+            heightlist=[
+                heights*10/100,
+                heights*20/100,
+                heights*10/100,
+                heights*20/100,
+                heights*20/100,
+            ]
+            bullet_style = ParagraphStyle(name="BulletStyle", leftIndent=20, bulletIndent=10, bulletFontSize=10)
+            res=Table([
+                [''],
+                [test1],
+                [''],
+                [Paragraph(test2, bullet_style)],
+                [Paragraph(text3,bullet_style)]
+            ],widths,heightlist)
+            res.setStyle([
+                #('GRID',(0,0),(-1,-1),1,'red'),
+                ('FONTNAME',(0,0),(-1,-1),'caliber'),
+                ('FONTSIZE',(0,0),(-1,-1),10),
+
+            ])
+            return res
+
+
+        def page3(widths, heights):
+            widthlist = [
+                widths * 5 / 100,
+                widths * 90 / 100,
+                widths * 5 / 100
+            ]
+            heightlist = [
+                heights * 5 / 100,
+                heights * 20 / 100,
+                heights * 70 / 100,
+                heights * 5/ 100,
+            ]
+            res = Table([
+                [page3text1(widthlist[1], heightlist[0])],
+                [page3text2(widthlist[1], heightlist[1])],
+                [page3text3(widthlist[1], heightlist[2])],
+                [''],
+            ], widthlist[1], heightlist)
+            res.setStyle([
+                # ('GRID',(0,0),(-1,-1),1,'red')
+                ('LINEBELOW', (0, -1), (-1, -1), 1, 'black')
+            ])
+            return res
+
+
+        def page3text1(widths, heights):
+            text = "Scaning Information"
+            """
+            heightlist=[
+                heights*60/100,
+                #heights*40/100,
+            ]"""
+            res = Table([
+                [text]
+            ], widths, heights)
+            color = colors.HexColor('#87CEEB')
+            res.setStyle([
+                ('TEXTCOLOR', (0, 0), (-1, -1), 'white'),
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 20),
+                ('BACKGROUND', (0, 0), (0, 0), color),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 20)
+
+            ])
+            return res
+
+
+        def page3text2(weights, heights):
+            text = "Connectivity Result"
+            para1 = f"Support cipher suite is {cipher_suite_supported}"
+            para1style = ParagraphStyle('st')
+            para1style.fontName = 'caliber'
+            para1style.fontSize = 12
+            para1style.spaceAfter = 10
+            para2 = f"Highest supported tls version is {tls_version}"
+            para3 =f"ecdh key exchange is {ecdh_key_exchange}"
+            para4=f"Connectivity status: {connectivity_status}"
+            para1 = Paragraph(para1, para1style)
+            para2 = Paragraph(para2, para1style)
+            para3 = Paragraph(para3, para1style)
+            para4=Paragraph(para4,para1style)
+            heightlist = [
+                heights * 10 / 100,
+                heights * 90 / 100
+            ]
+            paralist = []
+            paralist.append(para1)
+            paralist.append(para2)
+            paralist.append(para3)
+            paralist.append(para4)
+            color = colors.HexColor('#87CEEB')
+            res = Table([
+                [text],
+                [paralist]
+            ], weights, heightlist)
+            res.setStyle([
+                # ('GRID',(0,0),(-1,-1),1,'red'),
+                ('TEXTCOLOR', (0, 0), (0, 0), color),
+                ('FONTNAME', (0, 0), (0, 0), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (0, 0), 16),
+                ('BOTTOMPADDING', (0, 0), (0, 0), -15),
+                ('BOTTOMPADDING', (0, 1), (0, 1), 5),
+            ])
+            return res
+
+
+        def page3text3(weights, heights):
+            text = "Summary On Scan result"
+            para1 = f"Number of Certificate deployements {len(certificate_deployments)}"
+            para1style = ParagraphStyle('st')
+            para1style.fontName = 'caliber'
+            para1style.fontSize = 12
+
+            info1 = "Elliptic Curves: \n"
+            para2="accepted elliptic curves"
+            accepted_curve_count = len(supported_elliptic_list)
+            rejected_curve_count = len(rejected_elliptic_list)
+
+            for curve in supported_elliptic_list:
+                para2+=f" {curve},\n"
+
+            para3 = "rejected elliptic curves"
+
+            for curve in rejected_elliptic_list:
+                para3 += f" {curve},\n"
+            para4 = f"Heart bleed:      {status_heart} - {is_vulnerable_to_heartbleed}"
+            para1 = Paragraph(para1, para1style)
+            para2 = Paragraph(para2, para1style)
+            para3 = Paragraph(para3, para1style)
+            para4 = Paragraph(para4, para1style)
+            #print(  math.ceil(accepted_curve_count/10))
+            heightlist = [
+                heights * 10 / 100,
+                heights*5/100,
+                heights * 8 / 100,
+                heights *math.ceil(accepted_curve_count/10)* 4 / 100,
+                heights *math.ceil(rejected_curve_count/10)* 4 / 100,
+                heights * 5/ 100,
+                heights*50/100,
+
+            ]
+            paralist = []
+            #paralist.append(info1)
+            paralist.append(para1)
+            paralist.append(para2)
+            paralist.append(para3)
+            paralist.append(para4)
+            color = colors.HexColor('#87CEEB')
+            res = Table([
+                [text],
+                [para1],
+                [info1],
+
+                [para2],
+                [para3],
+                [para4],
+                [''],
+            ], weights, heightlist)
+            res.setStyle([
+                # ('GRID',(0,0),(-1,-1),1,'red'),
+                ('TEXTCOLOR', (0, 0), (0, 0), color),
+                ('FONTNAME', (0, 0), (0, 0), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (0, 0), 16),
+                ('FONTSIZE', (0, 1), (0, 1), 12),
+            ])
+            return res
+
+
+        def page4(widths, heights):
+            widthlist = [
+                widths * 5 / 100,
+                widths * 90 / 100,
+                widths * 5 / 100
+            ]
+            heightlist = [
+                heights * 5 / 100,
+                heights * 2.5 / 100,
+                heights * 70 / 100,
+                heights * 22.5 / 100,
+            ]
+            res = Table([
+                [page4text1(widthlist[1], heightlist[0])],
+                [''],
+                [page4text2(widthlist[1], heightlist[2])],
+                [''],
+            ], widthlist[1], heightlist)
+            res.setStyle([
+                ('LINEBELOW', (0, -1), (-1, -1), 1, 'black')
+            ])
+            return res
+
+
+        def page4text1(widths, heights):
+            text = "Cipher Suites"
+
+            res = Table([
+                [text]
+            ], widths, heights)
+            color = colors.HexColor('#87CEEB')
+            res.setStyle([
+                ('TEXTCOLOR', (0, 0), (-1, -1), 'white'),
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 20),
+                ('BACKGROUND', (0, 0), (0, 0), color),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 20)
+
+            ])
+            return res
+
+
+        def page4text2(widths, heights):
+            heightlist = [
+                heights * 32 / 100,
+                heights * 32 / 100,
+                heights * 36 / 100,
+
+            ]
+
+            text1 = "ssl_2_0_cipher_suites"
+            length_ssl_2_0=len(accepted_cipher_suites_ssl_2_0)+len(rejected_cipher_suites_ssl_2_0)
+            text2=""
+
+
+            if len(accepted_cipher_suites_ssl_2_0)==0:
+                text2 = f"Attemted to connect {(length_ssl_2_0)} cipher suites ,the server rejected all cipher suites"
+            elif len(accepted_cipher_suites_ssl_2_0)>0 and len(rejected_cipher_suites_ssl_2_0) != 0:
+                text2=f"Attemted to connect {(length_ssl_2_0)} cipher suites The server Accepted the following {len(accepted_cipher_suites_ssl_2_0)} cipher suites"
+
+            text3 = "ssl_3_0_cipher_suites"
+            length_ssl_3_0 = len(accepted_cipher_suites_ssl_3_0) + len(rejected_cipher_suites_ssl_3_0)
+            text4 = ""
+
+
+            if len(accepted_cipher_suites_ssl_3_0) == 0:
+                text4 = f"Attemted to connect {(length_ssl_3_0)} cipher suites ,the server rejected all cipher suites"
+            elif len(accepted_cipher_suites_ssl_3_0) > 0 and len(rejected_cipher_suites_ssl_3_0) != 0:
+                text4 = f"Attemted to connect {(length_ssl_3_0)} cipher suites The server Accepted {len(accepted_cipher_suites_ssl_3_0)} cipher suites"
+            text5 = "tls_1_0_cipher_suites"
+            length_tls_1_0 = len(accepted_cipher_suites_tls_1_0) + len(rejected_cipher_suites_tls_1_0)
+            text6 = ""
+
+
+            if len(accepted_cipher_suites_tls_1_0) == 0:
+                text6 = f"Attemted to connect {(length_tls_1_0)} cipher suites ,the server rejected all cipher suites"
+            elif len(accepted_cipher_suites_tls_1_0) > 0 and len(rejected_cipher_suites_tls_1_0) != 0:
+                text6 = f"Attemted to connect {(length_tls_1_0)} cipher suites The server Accepted  {len(accepted_cipher_suites_tls_1_0)} cipher suites"
+            text7 = "tls_1_1_cipher_suites"
+            length_tls_1_1 = len(accepted_cipher_suites_tls_1_1) + len(rejected_cipher_suites_tls_1_1)
+            text8 = ""
+
+            if len(accepted_cipher_suites_tls_1_1) == 0:
+                text8 = f"Attemted to connect {(length_tls_1_1)} cipher suites ,the server rejected all cipher suites"
+            elif len(accepted_cipher_suites_tls_1_1) > 0 and len(rejected_cipher_suites_tls_1_1) != 0:
+                text8 = f"Attemted to connect {(length_tls_1_1)} cipher suites The server Accepted  {len(accepted_cipher_suites_tls_1_1)} cipher suites"
+            text9 = "tls_1_2_cipher_suites"
+            length_tls_1_2 = len(accepted_cipher_suites_tls_1_2) + len(rejected_cipher_suites_tls_1_2)
+            text10 = ""
+
+            if len(accepted_cipher_suites_tls_1_2) == 0:
+                text10 = f"Attemted to connect {(length_tls_1_2)} cipher suites ,the server rejected all cipher suites"
+            elif len(accepted_cipher_suites_tls_1_2) > 0 and len(rejected_cipher_suites_tls_1_2) != 0:
+                text10 = f"Attemted to connect {(length_tls_1_2)} cipher suites The server Accepted  {len(accepted_cipher_suites_tls_1_2)} cipher suites"
+            text11 = "tls_1_3_cipher_suites"
+            length_tls_1_3 = len(accepted_cipher_suites_tls_1_3) + len(rejected_cipher_suites_tls_1_3)
+            text12 = ""
+
+            if len(accepted_cipher_suites_tls_1_3) == 0:
+                text12 = f"Attemted to connect {(length_tls_1_3)} cipher suites ,the server rejected all cipher suites"
+            elif len(accepted_cipher_suites_tls_1_3) > 0 and len(rejected_cipher_suites_tls_1_3) != 0:
+                text12 = f"Attemted to connect {(length_tls_1_3)} cipher suites The server Accepted  {len(accepted_cipher_suites_tls_1_3)} cipher suites"
+            text13="Robot Attack"
+            text14=""
+            if status_robot =="COMPLETED":
+                text14+="OK -"
+            else:
+                text14+="failed"
+            if result_robot =="NOT_VULNERABLE_NO_ORACLE":
+                text14+=" Not vulnerable"
+            else:
+                text14+=" Vulnerable"
+            text15="Session Renegotiation"
+            text16=""
+            text17=""
+            s=''
+            if session_renegotiation_status =="COMPLETED":
+                s="OK"
+            else:
+                s="failed"
+            if is_vulnerable_to_client_renegotiation_dos_renegotiation:
+                text16+=f"client renegotiation_dos {s} - vulnerable"
+            else:
+                text16+=f"client renegotiation_dos {s} - Not vulnerable"
+            if supports_secure_renegotiation_renegotiation:
+                text17+=f"Secure Renegotiation {s} - Supported"
+            else:
+                text17+=f"Secure Renegotiation {s} - Not supported"
+            para1style = ParagraphStyle('st')
+            para1style.fontName = 'caliber-bold'
+            para1style.fontSize = 12
+            para1style.spaceAfter = 10
+            para2style = ParagraphStyle('sc')
+            para2style.fontName = 'caliber'
+            para2style.fontSize = 12
+            para2style.spaceAfter = 10
+            para1 = Paragraph(text1, para1style)
+            para2 = Paragraph(text2, para2style)
+            para3=Paragraph(text3,para1style)
+            para4 = Paragraph(text4, para2style)
+            para5 = Paragraph(text5, para1style)
+            para6=Paragraph(text6,para2style)
+            para7 = Paragraph(text7, para1style)
+            para8 = Paragraph(text8, para2style)
+            para9=Paragraph(text9,para1style)
+            para10 = Paragraph(text10, para2style)
+            para11= Paragraph(text11, para1style)
+            para12 = Paragraph(text12, para2style)
+            para13 = Paragraph(text13, para1style)
+            para14 = Paragraph(text14, para2style)
+            para15 = Paragraph(text15, para1style)
+            para16 = Paragraph(text16, para2style)
+            para17 = Paragraph(text17, para2style)
+
+
+            para1list = []
+            para1list.append(para1)
+            para1list.append(para2)
+            para1list.append(para3)
+            para1list.append(para4)
+            para1list.append(para5)
+            para1list.append(para6)
+
+            para2list = []
+
+
+            para2list.append(para7)
+            para2list.append(para8)
+            para2list.append(para9)
+            para2list.append(para10)
+
+            para3list = []
+            para3list.append(para11)
+            para3list.append(para12)
+            para3list.append(para13)
+            para3list.append(para14)
+            para3list.append(para15)
+            para3list.append(para16)
+            para3list.append(para17)
+
+
+            res = Table([
+                [para1list],
+                [para2list],
+                [para3list],
+
+            ], widths, heightlist)
+            return res
+
+
+
+
+        def main_table():
+            print(f"inside pdf1 main")
+            widths,heights,size=table()
+            widths+=100
+            heights+=100
+            buffer = BytesIO()
+            
+            pdf=canvas.Canvas(buffer,pagesize=A4)
+            pdf.setAuthor("Your Author Name")
+            pdf.setTitle("Your Title")
+            pdf.setSubject("Your Subject")
+            pdf.setKeywords("Keyword1, Keyword2, Keyword3")
+            heightList=[
+                heights*0.005,
+                heights*0.08,
+                heights*0.7,
+                heights*0.05,
+                heights*0.0025,
+            ]
+            widthlist=[
+                widths*5/100,
+                widths*90/100,
+                widths*5/100,
+            ]
+            #a=pdf.getAvailableFonts()
+            #print(a)
+            font()
+            for i in range(1,5):
+                mainTable=Table([
+                    ['','',''],
+                    ['',headertable(widthlist[1],heightList[1],i),''],
+                    ['',bodytable(widthlist[1],heightList[2],i),''],
+                    ['',footertable(widthlist[1],heightList[3],i),''],
+                    ['','','']
+                    ],colWidths=widthlist,rowHeights=heightList)
+                #mainTable.setStyle([
+                #('GRID',(0,0),(-1,-1),1,'red')])
+                mainTable.wrapOn(pdf,0,0)
+                mainTable.drawOn(pdf,0,0)
+                pdf.showPage()
+            pdf.save()
+
+
+            
+            # Add a page break between sections
+                
+
+            
+            pdf_content = buffer.getvalue()
+            buffer.close()
+            
+            return pdf_content
+        print(f"inside pdf2")
+        pdf_content=main_table()
+        print(f"inside pdf3")
+
+
+
         # Create a PDF buffer
-        buffer = BytesIO()
-        print(f"\n\n=> Saving scan results to infun")
-
-        # Create a new PDF document
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-
-        # Create a list of flowable elements to add to the PDF
-        elements = []
-
-        # Define a custom style for the JSON content
-        styles = getSampleStyleSheet()
-        style = styles["Normal"]
-        style.textColor = colors.black
-
-        # Convert the JSON data to a formatted string
-        json_str = json.dumps(json_data, indent=4)
-
-        # Create a Paragraph with the JSON content and add it to the elements list
-        elements.append(Paragraph(json_str, style))
-
-        # Build the PDF document
-        doc.build(elements)
-
-        # File buffer needs to be reset for reading.
-        buffer.seek(0)
-        pdf_content = buffer.getvalue()
-        buffer.close()
-        print(f"\n\n=> Saving scan results to last infun")
+     
         return pdf_content
     def get_object(self, id):
         try:
@@ -352,7 +1245,7 @@ class ApiView_s(GenericAPIView):
             
             sort_field = request.query_params.get('sortField', 'date')
             sort_order = request.query_params.get('sortOrder', 'desc')
-            print(f"{sort_field}")
+            #print(f"{sort_field}")
 
         if sort_order == 'desc':
             queryset = Scan.objects.all().order_by(F(sort_field).desc())
