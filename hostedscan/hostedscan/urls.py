@@ -26,12 +26,14 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/target', views.ApiView.as_view(), name='api_target'),
     path('api/target/<int:id>', views.ApiView.as_view(), name='api_target'),
-    path('api/scan', views.ApiView_s.as_view(), name='api_scan'),
-    path('api/scan/<int:id>', views.ApiView_s.as_view(), name='api_scan'),
-    path('api/target/pdf', views.JSONToPDF.as_view(), name='api_targetpdf'),
+    path('api/scans', views.ApiView_s.as_view(), name='api_scan'),
+    path('api/scans/<int:id>', views.ApiView_s.as_view(), name='api_scan'),
+    path('api/scan/json/<int:id>', views.Viewjson.as_view(), name='api_scanjson'),
+    path('api/scan/pdf/<int:id>', views.Viewpdf.as_view(), name='api_scanpdf'),
+    path('api/scan/pdf_raw/<int:id>', views.Viewpdf_raw.as_view(), name='api_scanpdfraw'),
     path('api/risks', views.ApiView_Risk.as_view(), name='api_risk'),
     path('api/risks/<int:id>', views.ApiView_Risk.as_view(), name='api_risk'),
-    path('api/sslyze-scan', views.SSLyzeScanAPI.as_view(), name='api_sslyze_scan'),
+    path('api/risks/pdf/<int:id>', views.Viewpdf_Risk.as_view(), name='api_riskpdf'),
     path('', include('hostapp.urls')),
 
 ]
