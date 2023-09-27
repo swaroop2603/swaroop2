@@ -205,29 +205,305 @@ class ApiView_s(GenericAPIView):
 
         # Create a ContentFile with the JSON data
         json_content_file = ContentFile(json_output_as_str, name='report.json')
-        pdf_content = self.create_pdf(json_output_as_str)
+        pdf_content_list = self.create_pdf(json_output_as_str)
+        pdf_content=pdf_content_list[0]
+        pdf_content_raw=pdf_content_list[1]
         print(f"\n\n=> Saving scan results to out infun")
         # Return a JSON response with the scan results or a success message
-        pdf_content_file = ContentFile(pdf_content, name='report.pdf')
+        
         print(f"\n\n=> if1")
+
         serializer = Scanserializer(data=request.data)
         print(f"\n\n=> if2")
         unique_filename = f"{uuid4()}.pdf"
 
         # Save the PDF content with the unique filename
         pdf_file = ContentFile(pdf_content,name='report.pdf')
+        pdf_file_raw = ContentFile(pdf_content_raw,name='report_raw.pdf')
 
 
         # Create a dictionary to hold all data
         scan = Scan(
             target=target_url_main,
             pdf_file=pdf_file,
+            pdf_file_raw=pdf_file_raw,
             json_file=json_content_file,
             label=labels,
             
         )
         scan.save()
-        def get_risks(scan_results):
+        def get_risks(scan_results,json_data):
+            def create_pdf_risk(json_data):
+                data=json.loads(json_data)
+                server_scan_results = data.get("server_scan_results", [])  # Get the array, default to empty list if not present
+                date_scans_started=data.get("date_scans_started")
+                date_obj = datetime.strptime(date_scans_started, "%Y-%m-%dT%H:%M:%S.%f")
+
+
+                date_scans_started = date_obj.strftime("%B %d, %Y")
+                for idx, result in enumerate(server_scan_results):
+                    connectivity_result = result.get("connectivity_result",
+                                                    {})  # Get the connectivity_result, default to empty dictionary if not present
+                    cipher_suite_supported = connectivity_result.get("cipher_suite_supported")
+                    connectivity_status=result.get("connectivity_status")
+                    tls_version = connectivity_result.get("highest_tls_version_supported")
+                    supports_ecdh_key_exchange=connectivity_result.get("supports_ecdh_key_exchange")
+
+                    ecdh_key_exchange="Rejected"
+                    if supports_ecdh_key_exchange is True:
+                        ecdh_key_exchange="accepted"
+
+                    server_location=result.get("server_location",{})
+                    host=server_location.get("hostname")
+                    ip_address=server_location.get("ip_address")
+                    port=server_location.get("port")
+
+                def bodytable(widths,heights,i):
+                    print(f"body table risk")
+                    widthlist=[
+                        widths*5/100,
+                        widths*90/100,
+                        widths*5/100,
+                    ]
+                    if i==1:
+                        res=page1(widthlist[1],heights)
+                        return res
+                    elif i==2:
+                        res=page2(widthlist[1],heights)
+                        return res
+                    
+                def page1(widths,heights):
+                    widthlist=[
+                        widths*5/100,
+                        widths*90/100,
+                        widths*5/100
+                    ]
+                    heightlist=[
+                        heights*2/100,
+                        heights*33/100,
+                        heights*4/100,
+                        heights*8/100,
+                        heights*8/100,
+                        heights*16/100,
+                        heights*9/100,
+                        heights*15/100,
+                        heights*2.5/100,
+                        heights*2.5/100
+                    ]
+                    res=Table([
+                        [''],
+                        [''],
+                        [page1text1(widthlist[1],heightlist[1])],
+                        [''],
+                        [page1text2(widthlist[1],heightlist[3])],
+                        [''],
+                        [''],
+                        [''],
+                        [''],
+                        ['']
+                        
+                    ],widthlist[1],heightlist)
+                    color=colors.HexColor('#87CEEB')
+                    res.setStyle([
+                        #('GRID',(0,0),(-1,-1),1,'red'),
+                        #('TEXTCOLOR',(0,1),(-1,-1),'white'),
+                        ('FONTNAME',(0,1),(0,1),'caliber-bold'),
+                        ('FONTSIZE',(0,1),(0,1),30),
+                        ('BOTTOMPADDING',(0,1),(0,1),30),
+                        ('BACKGROUND',(0,1),(-1,-2),color),
+                        ('LEFTPADDING',(0,0),(-1,-1),20),
+                        ('LINEBELOW',(0,-1),(-1,-1),1,'black')
+                    ])
+                    return res
+                def page1text1(widths,heights):
+
+                    text=f"Risk Report on {host}"
+                    
+                    res=Table([
+                        [text],
+                    ],widths,heights)
+                    res.setStyle([
+                        ('TEXTCOLOR',(0,0),(-1,-1),'white'),
+                        ('FONTNAME',(0,0),(-1,-1),'caliber-bold'),
+                        ('FONTSIZE',(0,0),(-1,-1),30),
+                    ])
+                    return res
+                def page1text2(widths,heights):
+                    text1="S3 Infotech"
+                    text2=f"{date_scans_started}"
+                    heightlist=[
+                        heights*20/100,
+                        heights*50/100,
+                    ]
+                    res=Table([
+                        [text1],
+                        [text2]
+                    ],widths,heightlist)
+                    res.setStyle([
+                        ('TEXTCOLOR',(0,0),(-1,-1),'white'),
+                        ('FONTNAME',(0,0),(-1,-1),'caliber'),
+                        ('FONTSIZE',(0,0),(-1,-1),20),
+                    ])
+                    return res
+
+
+                def page2(widths,heights):
+                    widthlist=[
+                        widths*5/100,
+                        widths*90/100,
+                        widths*5/100
+                    ]
+                    heightlist=[
+                        heights*8/100,
+                        heights*3/100,
+                        heights*3/100,
+                        heights*3/100,
+                        heights*6/100,
+                        heights*1.5/100,
+                        heights*30/100,
+
+                        heights*40/100,
+                    ]
+                    res=Table([
+                        [page2text1(widthlist[1],heightlist[0])],
+                        [''],
+                        [page2text2(widthlist[1],heightlist[2])],
+                        [''],
+                        [page2text3(widthlist[1],heightlist[4])],
+                        [''],
+                        [page2text4(widthlist[1],heightlist[6])],
+                        
+
+                        [''],
+                    ],widthlist[1],heightlist)
+                    res.setStyle([
+                        #('GRID',(0,0),(-1,-1),1,'red'),
+                        ('LINEBELOW',(0,-1),(-1,-1),1,'black')
+                    ])
+                    return res
+                def page2text1(widths,heights):
+                    text="Vulnerability Summary"
+                    res=Table([
+                        [text]
+                    ],widths,heights)
+                    color=colors.HexColor('#87CEEB')
+                    res.setStyle([
+                        ('TEXTCOLOR',(0,0),(-1,-1),'white'),
+                        ('FONTNAME',(0,0),(-1,-1),'Helvetica'),
+                        ('FONTSIZE',(0,0),(-1,-1),20),
+                        ('BACKGROUND',(0,0),(0,0),color),
+                        ('BOTTOMPADDING',(0,0),(-1,-1),30)
+
+                    ])
+                    return res
+                def page2text2(widths,heights):
+                    text="Quick View"
+                    res=Table([
+                        [text]
+                    ],widths,heights)
+                    color=colors.HexColor("#89CFF0")
+                    res.setStyle([
+                        ('TEXTCOLOR',(0,0),(-1,-1),color),
+                        ('FONTNAME',(0,0),(-1,-1),'caliber'),
+                        ('FONTSIZE',(0,0),(-1,-1),20),
+                    ])
+                    return res
+                def page2text3(widths,heights):
+
+                    text1="The table below is designed to provide a quick view of all the identified findings and their respective risk ratings. Please see the following section for a detailed listing of the identified findings."
+
+                    para1style = ParagraphStyle('st')
+                    para1style.fontName = 'caliber'
+                    para1style.fontSize = 12
+                    para1style.spaceAfter = 10
+                    para1=Paragraph(text1,para1style)
+                    res=Table([
+                        [para1],
+                        ],widths,heights)
+                    res.setStyle([
+                        #('GRID',(0,0),(-1,-1),1,'red'),
+                        ('FONTNAME',(0,0),(-1,-1),'caliber'),
+                        ('FONTSIZE',(0,0),(-1,-1),10),
+                    ])
+                    return res
+                def page2text4(widths,heights):
+                    heightlist = []
+                    for i in range(0, 5):
+                        heightlist.append(heights * 20 / 100)
+                    widthlist = [
+                        widths*2/100,
+                        widths * 48 / 100,
+                        widths * 25 / 100,
+                        widths * 25 / 100,
+                    ]
+                    res=Table([
+                        ["#","Finding Title","Instances","Rating"],
+                        ["1", "Shared Local Administrator Password", "1", "Critical"],
+                        ["2", "SMB Signing Not Enabled", "9", "High"],
+                        ["3", "DNS Cache Snooping", "3", "Medium"],
+                        ["4", "Apache mod_negotiation (Apache MultiViews)", "1", " Low"],
+
+                    ],widthlist,heightlist)
+
+                    res.setStyle([
+                        #('GRID',(0,0),(-1,-1),1,'red'),
+
+                        ('FONTNAME',(0,0),(-1,-1),'caliber'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 10),
+                        ('FONTSIZE',(0,0),(-1,0),14),
+                    ])
+                    return res
+                def main_table():
+                    print(f"inside pdf1 main")
+                    widths,heights,size=table()
+                    widths+=100
+                    heights+=100
+                    buffer = BytesIO()
+                    
+                    pdf=canvas.Canvas(buffer,pagesize=A4)
+                    pdf.setAuthor("Your Author Name")
+                    pdf.setTitle("Your Title")
+                    pdf.setSubject("Your Subject")
+                    pdf.setKeywords("Keyword1, Keyword2, Keyword3")
+                    heightList=[
+                        heights*0.005,
+                        heights*0.08,
+                        heights*0.7,
+                        heights*0.05,
+                        heights*0.0025,
+                    ]
+                    widthlist=[
+                        widths*5/100,
+                        widths*90/100,
+                        widths*5/100,
+                    ]
+                    #a=pdf.getAvailableFonts()
+                    #print(a)
+                    font()
+                    for i in range(1,3):
+                        mainTable=Table([
+                            ['','',''],
+                            ['',headertable(widthlist[1],heightList[1],i),''],
+                            ['',bodytable(widthlist[1],heightList[2],i),''],
+                            ['',footertable(widthlist[1],heightList[3],i),''],
+                            ['','','']
+                            ],colWidths=widthlist,rowHeights=heightList)
+                        #mainTable.setStyle([
+                        #('GRID',(0,0),(-1,-1),1,'red')])
+                        mainTable.wrapOn(pdf,0,0)
+                        mainTable.drawOn(pdf,0,0)
+                        pdf.showPage()
+                    pdf.save()
+                    # Add a page break between sections
+                    pdf_content = buffer.getvalue()
+                    buffer.close()
+                    
+
+                    return pdf_content
+                
+
+                pdf_content=main_table()
+                return pdf_content
             first_scan_result = scan_results[0].scan_result
             
             risks_list = [["Name", "Description", "Severity", "Status"]]
@@ -289,21 +565,48 @@ class ApiView_s(GenericAPIView):
             status.append(risks_list[5][3])
             url.append(target_url)
             scantype.append("ssylze")
-            #print(f"{title}")
-            risk5=Risk(
-                    Title=list(title),
-                    Scantype=scantype,
-                    target =url,
-                    Thread_Level=threadlvl,
-                    STatus=status,
-                )
-            risk5.save()
+            target_as_string = json.dumps(url)
+            pdf_risk=create_pdf_risk(json_data)
+            pdf_risk_content = ContentFile(pdf_risk,name='report_risk.pdf')
+            
+            print(f"{id}")
+
+            print(f"{target_as_string[1]}")
+            latest_scan = Scan.objects.latest('id')
+
+
+            latest_scan_id = latest_scan.id
+            try:
+                risk_instance = Risk.objects.get(target=target_url)
+                
+                risk_instance.Title = title
+                risk_instance.id_risk=latest_scan_id
+                risk_instance.Scantype = scantype
+                risk_instance.Thread_Level = threadlvl
+                risk_instance.STatus = status
+                risk_instance.pdf_file_risk=pdf_risk_content
+                
+                risk_instance.save()
+            except Risk.DoesNotExist:
+                
+                risk5=Risk(
+                        Title=title,
+                        id_risk=latest_scan_id,
+                        Scantype=scantype,
+                        target =target_url,
+                        Thread_Level=threadlvl,
+                        STatus=status,
+                        pdf_file_risk=pdf_risk_content,
+                    )
+                risk5.save()
             #print(f"{title}")
             #print(f"{risks_list}")
             return risks_list
-        risks_list = get_risks(all_server_scan_results)
+       
+     
+        risks_list = get_risks(all_server_scan_results,json_output_as_str)
         return JsonResponse({'detail': 'Scan completed successfully'}, status=status.HTTP_201_CREATED)
-
+    
     def example_json_result_output(self, json_file_out, all_server_scan_results, date_scans_started, date_scans_completed):
         json_output = SslyzeOutputAsJson(
             server_scan_results=[ServerScanResultAsJson.from_orm(result) for result in all_server_scan_results],
@@ -683,12 +986,12 @@ class ApiView_s(GenericAPIView):
                 [''],
                 [page2text3(widthlist[1],heightlist[4])],
                 [''],
-                [page2text4(widthlist[1],heightlist[6])],
-                
-                [page2text5(widthlist[1],heightlist[7])],
                 [''],
-                [page2text6(widthlist[1],heightlist[9])],
-                [page2text7(widthlist[1],heightlist[10])],
+                
+                [''],
+                [''],
+                [''],
+                [''],
                 [''],
             ],widthlist[1],heightlist)
             res.setStyle([
@@ -746,84 +1049,7 @@ class ApiView_s(GenericAPIView):
                 ('FONTSIZE',(0,0),(-1,-1),10),
             ])
             return res
-        def page2text4(widths,heights):
-            text="Control(s)"
-            res=Table([
-                [text]
-            ],widths,heights)
-            color=colors.HexColor("#89CFF0")
-            res.setStyle([
-                #('GRID',(0,0),(-1,-1),1,'red'),
-                ('TEXTCOLOR',(0,0),(-1,-1),color),
-                ('FONTNAME',(0,0),(-1,-1),'caliber'),
-                ('FONTSIZE',(0,0),(-1,-1),20),
-            ])
-            return res
-        def page2text5(widths,heights):
-            test1="The in-scope information assets were measured against the following controls:"
-            test2="• Open Web Application Security Project (OWASP)"
-            text3="• Penetration Testing Execution Standard (PTES)"
-            heightlist=[
-                heights*10/100,
-                heights*20/100,
-                heights*10/100,
-                heights*20/100,
-                heights*20/100,
-            ]
-            bullet_style = ParagraphStyle(name="BulletStyle", leftIndent=20, bulletIndent=10, bulletFontSize=10)
-            res=Table([
-                [''],
-                [test1],
-                [''],
-                [Paragraph(test2, bullet_style)],
-                [Paragraph(text3,bullet_style)]
-            ],widths,heightlist)
-            res.setStyle([
-                #('GRID',(0,0),(-1,-1),1,'red'),
-                ('FONTNAME',(0,0),(-1,-1),'caliber'),
-                ('FONTSIZE',(0,0),(-1,-1),10),
-
-            ])
-            return res
-        def page2text6(widths,heights):
-            text="Timetable"
-            res=Table([
-                [text]
-            ],widths,heights)
-            color=colors.HexColor("#89CFF0")
-            res.setStyle([
-                #('GRID',(0,0),(-1,-1),1,'red'),
-                ('TEXTCOLOR',(0,0),(-1,-1),color),
-                ('FONTNAME',(0,0),(-1,-1),'caliber'),
-                ('FONTSIZE',(0,0),(-1,-1),20),
-            ])
-            return res
-        def page2text7(widths,heights):
-            test1="The following testing timetable is shown below:"
-            test2="• Test Start: 05/01/17"
-            text3="• Test End: 05/05/17"
-            heightlist=[
-                heights*10/100,
-                heights*20/100,
-                heights*10/100,
-                heights*20/100,
-                heights*20/100,
-            ]
-            bullet_style = ParagraphStyle(name="BulletStyle", leftIndent=20, bulletIndent=10, bulletFontSize=10)
-            res=Table([
-                [''],
-                [test1],
-                [''],
-                [Paragraph(test2, bullet_style)],
-                [Paragraph(text3,bullet_style)]
-            ],widths,heightlist)
-            res.setStyle([
-                #('GRID',(0,0),(-1,-1),1,'red'),
-                ('FONTNAME',(0,0),(-1,-1),'caliber'),
-                ('FONTSIZE',(0,0),(-1,-1),10),
-
-            ])
-            return res
+     
 
 
         def page3(widths, heights):
@@ -1164,7 +1390,8 @@ class ApiView_s(GenericAPIView):
             return res
 
 
-
+        def fun_ciper_suites():
+            return ""
 
         def main_table():
             print(f"inside pdf1 main")
@@ -1207,26 +1434,88 @@ class ApiView_s(GenericAPIView):
                 mainTable.drawOn(pdf,0,0)
                 pdf.showPage()
             pdf.save()
-
-
-            
             # Add a page break between sections
-                
-
-            
             pdf_content = buffer.getvalue()
             buffer.close()
             
+
+            return pdf_content
+        
+        def rawtable():
+            def add_variable_to_pdf(variable_name, variable_value):
+                variable_text = f"<b>{variable_name}:</b> {variable_value}"
+                pdf_content.append(Paragraph(variable_text, styles['Normal']))
+                pdf_content.append(Spacer(1, 6))  # Add some space between variables
+            def funciphersuites(a,b):
+
+                if len(a)==0:
+                    return f"Attempted to connect {len(b)} cipher suites, the server rejected all the cipher cuites"
+                elif len(b)==0:
+                    return f"Attempted to connect {len(a)} cipher suites, the server, accepted all the cipher cuites"
+                else:
+
+                    l=[]
+                    for curve in a:
+                        cipher_suite = curve.get("cipher_suite")
+                        name = cipher_suite.get("name")
+                        l.append(name)
+                    str = ", ".join(l)
+
+                    return f"""attemted to connect {len(a)+len(b)} cipher suites, the server accepted {len(a)} cipher cuites,
+                            the accepted suites are {str}
+                            """
+            buffer=BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4)
+            pdf_content = []
+            styles = getSampleStyleSheet()
+            pdf_content.append(Paragraph("Scan Report", styles['Title']))
+            pdf_content.append(Spacer(1, 12))
+            add_variable_to_pdf("Connection Type", server_location.get("connection_type"))
+            add_variable_to_pdf("Hostname", host)
+            add_variable_to_pdf("Ip Address",ip_address)
+            add_variable_to_pdf("Port",port )
+            add_variable_to_pdf("Number of certificate deployments",len(certificate_deployments) )
+            add_variable_to_pdf("Cipher Suite Supported", cipher_suite_supported)
+            add_variable_to_pdf("Connectivity Status", connectivity_status)
+            add_variable_to_pdf("TLS Version", tls_version)
+            add_variable_to_pdf("Supports ECDH Key Exchange", supports_ecdh_key_exchange)
+            add_variable_to_pdf("Elliptic curves",len(supported_elliptic_list)+len(rejected_elliptic_list))
+            ac_ell = ", ".join(supported_elliptic_list)
+            add_variable_to_pdf(f"Accepted Elliptic Curves({len(supported_elliptic_list)})", ac_ell)
+            rc_ell=", ".join(rejected_elliptic_list)
+            add_variable_to_pdf(f"Rejected Elliptic curves({len(rejected_elliptic_list)})",rc_ell)
+            add_variable_to_pdf("Tls Fall back SCSV",result_tls)
+            add_variable_to_pdf("supports fallback SCSV",supports_fallback_scsv )
+            str=""
+            str=status_heart+" - "+ is_vulnerable_to_heartbleed
+            add_variable_to_pdf("Heartbleed",str )
+            add_variable_to_pdf("SSL_2_0 Cipher Cuites",funciphersuites(accepted_cipher_suites_ssl_2_0,rejected_cipher_suites_ssl_2_0) )
+            add_variable_to_pdf("SSL_3_0 Cipher Cuites",
+                                funciphersuites(accepted_cipher_suites_ssl_3_0, rejected_cipher_suites_ssl_3_0))
+            add_variable_to_pdf("TLS_1_0 Cipher Cuites",
+                                funciphersuites(accepted_cipher_suites_tls_1_0, rejected_cipher_suites_tls_1_0))
+            add_variable_to_pdf("TLS_1_1 Cipher Cuites",
+                                funciphersuites(accepted_cipher_suites_tls_1_1, rejected_cipher_suites_tls_1_1))
+            add_variable_to_pdf("TLS_1_2 Cipher Cuites",
+                                funciphersuites(accepted_cipher_suites_tls_1_2, rejected_cipher_suites_tls_1_2))
+            add_variable_to_pdf("TLS_1_3 Cipher Cuites",
+                                funciphersuites(accepted_cipher_suites_tls_1_3, rejected_cipher_suites_tls_1_3))
+            add_variable_to_pdf("Robot Status",f"{status_robot} - {result_robot}")
+            add_variable_to_pdf("Session renogation",f"{session_renegotiation_status}")
+            doc.build(pdf_content)
+            buffer.seek(0)
+            pdf_content = buffer.getvalue()
+            buffer.close()
             return pdf_content
         print(f"inside pdf2")
         pdf_content=main_table()
+        pdf_list=[]
+        pdf_list.append(pdf_content)
         print(f"inside pdf3")
-
-
-
         # Create a PDF buffer
-     
-        return pdf_content
+        pdf_content_raw=rawtable()
+        pdf_list.append(pdf_content_raw)
+        return pdf_list
     def get_object(self, id):
         try:
             return Scan.objects.get(pk=id)
@@ -1372,6 +1661,48 @@ class Viewpdf(RetrieveAPIView):
             response = FileResponse(pdf_file, content_type='application/pdf')
             response['Content-Disposition'] = f'attachment; filename="{pdf_file.name}"'
             return response
+class Viewpdf_raw(RetrieveAPIView):
+    def get_object(self, id):
+        try:
+            return Scan.objects.get(pk=id)
+        except Scan.DoesNotExist:
+            return None
+    def get(self, request, id=None):
+        if id is not None:
+            scan = Scan.objects.get(pk=id)
+            pdf_file = scan.pdf_file_raw
+            response = FileResponse(pdf_file, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{pdf_file.name}"'
+            return response
+class Viewjson(RetrieveAPIView):
+    def get_object(self, id):
+        try:
+            return Scan.objects.get(pk=id)
+        except Scan.DoesNotExist:
+            return None
+    def get(self, request, id=None):
+        if id is not None:
+            scan = Scan.objects.get(pk=id)
+            json_file = scan.json_file
+            response = FileResponse(json_file, content_type='application/json')
+            response['Content-Disposition'] = f'attachment; filename="{json_file.name}"'
+            return response
+class Viewpdf_Risk(RetrieveAPIView):
+    def get_object(self, id):
+        try:
+            return Risk.objects.get(pk=id)
+        except Risk.DoesNotExist:
+            return None
+    def get(self, request, id=None):
+        if id is not None:
+            risk = Risk.objects.get(pk=id)
+            pdf_file = risk.pdf_file_risk
+            response = FileResponse(pdf_file, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{pdf_file.name}"'
+            return response
+
+
+
     
 # views.py
 
