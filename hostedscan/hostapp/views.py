@@ -25,7 +25,7 @@ from reportlab.pdfgen import canvas
 from .localsettings import table,font,Output
 from .header import headertable
 from reportlab.lib.pagesizes import A4
-
+from .Appendix import appendix
 from .footer import footertable
 import math
 
@@ -269,6 +269,9 @@ class ApiView_s(GenericAPIView):
                         res=page1(widthlist[1],heights)
                         return res
                     elif i==2:
+                        res=appendix(widthlist[1],heights)
+                        return res
+                    elif i==3:
                         res=page2(widthlist[1],heights)
                         return res
                     
@@ -480,7 +483,7 @@ class ApiView_s(GenericAPIView):
                     #a=pdf.getAvailableFonts()
                     #print(a)
                     font()
-                    for i in range(1,3):
+                    for i in range(1,4):
                         mainTable=Table([
                             ['','',''],
                             ['',headertable(widthlist[1],heightList[1],i),''],
@@ -874,14 +877,18 @@ class ApiView_s(GenericAPIView):
             ]
             if i==1:
                 res=page1(widthlist[1],heights)
+                
                 return res
             elif i==2:
+                res=appendix(widthlist[1],heights)
+                return res
+            elif i==3:
                 res=page2(widthlist[1],heights)
                 return res
-            elif i == 3:
+            elif i == 4:
                 res = page3(widthlist[1], heights)
                 return res
-            elif i == 4:
+            elif i == 5:
                 res = page4(widthlist[1], heights)
                 return res
         def page1(widths,heights):
@@ -1420,7 +1427,7 @@ class ApiView_s(GenericAPIView):
             #a=pdf.getAvailableFonts()
             #print(a)
             font()
-            for i in range(1,5):
+            for i in range(1,6):
                 mainTable=Table([
                     ['','',''],
                     ['',headertable(widthlist[1],heightList[1],i),''],
