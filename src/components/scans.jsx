@@ -4,7 +4,7 @@ import axios from 'axios';
 import { useState ,useEffect} from 'react';
 import { useLocation } from 'react-router-dom';
 import Propscan from './prop_scan';
-import { FaFilePdf } from 'react-icons/fa';
+import { FaFilePdf,FaFileCode } from 'react-icons/fa';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faRefresh ,faChevronLeft, faChevronRight} from '@fortawesome/free-solid-svg-icons';
 import { Document, Page } from 'react-pdf';
@@ -101,6 +101,7 @@ function Scans() {
           const requestData={
             target:scanData.target,
             label:scanData.label,
+            id:scanData.id,
           }
           const response = await axios.post("http://127.0.0.1:8000/api/scans", requestData).then(() => {
             
@@ -214,6 +215,51 @@ function Scans() {
           console.error('Error fetching or opening PDF:', error);
         }
       };
+      const handleButtonClick_raw = async (id) => {
+        try {
+          // Make a GET request to your server to fetch the PDF data
+          const response = await axios.get(`http://127.0.0.1:8000/api/scan/pdf_raw/${id}`, {
+            responseType: 'blob', // Specify the response type as blob
+          });
+    
+          // Check if the PDF file is not corrupted
+          if (!response.data || response.data.size === 0) {
+            throw new Error('PDF file is corrupted');
+          }
+    
+          // Create a blob URL for the PDF blob
+          const pdfBlob = new Blob([response.data], { type: 'application/pdf' });
+          const pdfBlobUrl = URL.createObjectURL(pdfBlob);
+    
+          // Open the PDF in a new window
+          window.open(pdfBlobUrl, '_blank');
+        } catch (error) {
+          console.error('Error fetching or opening PDF:', error);
+        }
+      };
+      const handleButtonClickJson = async (id) => {
+        try {
+          // Make a GET request to your server to fetch the JSON data
+          const response = await axios.get(`http://127.0.0.1:8000/api/scan/json/${id}`, {
+            responseType: 'blob', // Specify the response type as blob
+          });
+      
+          // Check if the JSON file is not corrupted
+          if (!response.data || response.data.size === 0) {
+            throw new Error('JSON file is corrupted');
+          }
+      
+          // Create a blob URL for the JSON blob
+          const jsonBlob = new Blob([response.data], { type: 'application/json' });
+          const jsonBlobUrl = URL.createObjectURL(jsonBlob);
+      
+          // Open the JSON in a new window
+          window.open(jsonBlobUrl, '_blank');
+        } catch (error) {
+          console.error('Error fetching or opening JSON:', error);
+        }
+      };
+      
       
       
     return (
@@ -267,7 +313,38 @@ function Scans() {
           <td style={{ textAlign: 'center'}}>SSylze</td>  
           <td style={{ textAlign: 'center'}}>{item.target}</td>
             <td style={{ textAlign: 'center'}}>Succeeded</td>
-           <td style={{ textAlign: 'center'}}> <button style={buttonStyle} onClick={() => handleButtonClick(item.id)}><FaFilePdf /></button></td>
+            <div>
+
+
+
+
+                  
+<td style={{ textAlign: 'center' }}>
+<button style={{ background: 'none', border: 'none', padding: '0', color: 'red',cursor: 'pointer' }} onClick={() => handleButtonClick(item.id)}>
+<FaFilePdf /> PDF
+</button>
+
+</td>
+<td style={{ textAlign: 'center' }}>
+<button
+style={{  background: 'none', border: 'none', padding: '0', color: 'orange',cursor: 'pointer'}}
+onClick={() => handleButtonClick_raw(item.id)}
+>
+<FaFilePdf /> Raw
+</button>
+
+</td>
+<td style={{ textAlign: 'center' }}>
+<button
+style={{ background: 'none', border: 'none', padding: '0', color: '#00e1d9',cursor: 'pointer'}}
+onClick={() => handleButtonClickJson(item.id)}
+>
+<FaFileCode /> JSON
+</button>
+</td>
+
+
+</div>
             <td style={{ textAlign: 'center'}}>{calculateTimeDifference(item.date)} </td>
             <td style={{ textAlign: 'center'}} > <button
               style={buttonStyle}
