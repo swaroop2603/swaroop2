@@ -183,6 +183,7 @@ const Newscan = ({ onClose, showPopupFunction }) => {
   const handleSubmission = async () => {
     const selectedTargetValues = getSelectedTargetValues();
     console.log(selectedTargetValues)
+    
     const requestData = {
       target: selectedTargetValues[0],
       label: "ss",
